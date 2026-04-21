@@ -1,0 +1,21 @@
+{
+  "name": "magicblock-private-api-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal reproducible example for a private PvP betting flow using MagicBlock Private Payments API on Solana devnet.",
+  "main": "src/privatePaymentsClient.js",
+  "scripts": {
+    "test": "node tests/local-betting-simulation.test.js",
+    "test:devnet": "node scripts/reproduce-devnet.js",
+    "repro": "node scripts/reproduce-devnet.js"
+  },
+  "dependencies": {
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.11.1",
+    "@solana/spl-token": "^0.1.8",
+    "@solana/web3.js": "^1.98.4",
+    "bs58": "^6.0.0",
+    "dotenv": "^10.0.0",
+    "tweetnacl": "^1.0.3"
+  }
+}
+
