@@ -1,7 +1,8 @@
 {
-  "startedAt": "2026-04-21T18:43:55.338Z",
-  "wallet": "FT19FN2Fop3VJ3vfv3bA3TjBUx9etgXJDbGWjzRj8EEX",
-  "recipient": "9amaJtjNcRrJsV9Y9unDNdctnuJuUjfybX21DJHorWsg",
+  "startedAt": "2026-04-24T21:32:46.842Z",
+  "custodyWallet": "FT19FN2Fop3VJ3vfv3bA3TjBUx9etgXJDbGWjzRj8EEX",
+  "recipientWallet": "GZWbe4NZJB18HfgdHsaaohNDCMwMkDpGGEanmGDgwXUJ",
+  "recipientKeypairWasGenerated": true,
   "validatorId": "MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo",
   "mint": "So11111111111111111111111111111111111111112",
   "steps": [
@@ -16,17 +17,38 @@
       "signature": null
     },
     {
-      "step": "ensure_base_wsol",
+      "step": "custody_ensure_base_wsol",
       "ok": true,
       "wrapped": true,
       "ata": "Cc3kw3eDZfjds8GAspYhhK2vUfnBaCpCHnDp5bCXZN5X",
-      "signature": "iYN7vZ9x19h5PWz9udvokCSopy2aPQqsHT3rn71ndqjoXrNucoDnETMhd7ubRVmy8RoACFeP5jiu7GqncibF7TV"
+      "signature": "aZsAPmDvDsfJdh7u1rUi4rGNJfZXdZaBDf7x8mRYUBqhoZ4uhhj8jdBeY9wE7fuHSK4e1H4CnTY75Z4C9qynxKr"
     },
     {
-      "step": "private_bet_intake_base_to_ephemeral",
+      "step": "private_bet_intake_deposit_base_to_ephemeral",
       "ok": true,
       "sendTo": "base",
-      "signature": "5QL3i9pqLxyxrKSnQX2JU5WrwcY5DLvGJf1xXzeDBHBComotMY795gTF9yYRWr6ecRhicUQ565Z7izjWUKG6F3g9"
+      "signature": "4i4X36mkgzLJJKXHJ3kKuUAFFf7gnitCzD2SJocTg2hshuW5crwzCFLN6xLR2eFUiXASuft57Dhqgg1d38fG3qLy"
+    },
+    {
+      "step": "fund_recipient_for_devnet_fees",
+      "ok": true,
+      "funded": true,
+      "balanceLamports": 20000000,
+      "signature": "5QpGdstB1Nf5AfKcGR3LRmd3obtDmRk6tP6Ly24kAfbSYjWaz8KVvmSun38q5nsweAZdKbs7UST14nznXwQdA9ZR",
+      "lamports": 20000000
+    },
+    {
+      "step": "recipient_ensure_base_wsol",
+      "ok": true,
+      "wrapped": true,
+      "ata": "AgQrGFWuoEWQc9iYkzmyfa3ucgDxqG73R57paDFFNFTx",
+      "signature": "5UYkbhDQNJcBPBYB7SB7gjdmQLS98e2gTnvpWi38Gd6JQtKzEombf78FUNTVH73VpS2GaBnhrPtGyAp4dANtcS7S"
+    },
+    {
+      "step": "recipient_initialize_private_balance_with_deposit",
+      "ok": true,
+      "sendTo": "base",
+      "signature": "4hnpeRE9NaQDMGczupGiZCNFZv2qczSMpgVA2CB5pCS2gVBYPp8rPQwdet8mompLB8Hp8sS2cwa5p1vQ8KMqYpzg"
     },
     {
       "step": "compute_payouts",
@@ -35,7 +57,7 @@
       "winnerPoolLamports": 9000000,
       "payouts": [
         {
-          "wallet": "FT19FN2Fop3VJ3vfv3bA3TjBUx9etgXJDbGWjzRj8EEX",
+          "wallet": "GZWbe4NZJB18HfgdHsaaohNDCMwMkDpGGEanmGDgwXUJ",
           "fighter": "fighter_a",
           "stakeLamports": 10000000,
           "payoutLamports": 9000000
@@ -43,19 +65,24 @@
       ]
     },
     {
-      "step": "build_private_payout_ephemeral_to_base",
+      "step": "build_private_payout_ephemeral_to_ephemeral",
       "ok": true,
       "sendTo": "ephemeral"
     },
     {
-      "step": "submit_private_payout_ephemeral_to_base",
-      "ok": false,
-      "expectedFailure": true,
-      "error": "ephemeral_transaction_failed:\"InvalidWritableAccount\""
+      "step": "submit_private_payout_ephemeral_to_ephemeral",
+      "ok": true,
+      "signature": "4QcsttjbxkqPaCPWWahGWL73tRfB7JadayPZ7qLZQz9EhWELnWR9dJ8NyazpGFeveDN9a7DkSzxG7NcX3tY9Dfk"
+    },
+    {
+      "step": "recipient_withdraw_ephemeral_to_base",
+      "ok": true,
+      "sendTo": "base",
+      "signature": "kRSrv8WaJUP3GLDC8jjLckxGh2cUpsEhXhUQuUeFwg6uX1wegP3aRe4e23jzV4UGJmXiWApQePftZxYKEGL38q9"
     }
   ],
   "summary": {
-    "status": "reproduced_expected_failure",
-    "note": "This repository is meant to demonstrate that bet intake works but treasury-side private payout currently fails during ephemeral submission."
+    "status": "canonical_flow_succeeded",
+    "note": "Deposit intake, private transfer payout, and recipient withdraw all succeeded on devnet."
   }
 }

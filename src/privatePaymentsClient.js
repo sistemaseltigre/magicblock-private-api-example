@@ -181,22 +181,43 @@ class PrivatePaymentsClient {
     return { wrapped: true, ata: ata.toBase58(), signature, currentLamports: current + needed };
   }
 
-  async buildBaseToEphemeralTransfer({ from, to, amountLamports, memo }) {
-    return this.paymentsRequest('/v1/spl/transfer', {
-      from,
-      to,
+  async transferSolIfNeeded({ recipient, minimumLamports }) {
+    const recipientKey = new PublicKey(recipient);
+    const balance = await this.baseConnection.getBalance(recipientKey, 'confirmed');
+    if (balance >= minimumLamports) {
+      return { funded: false, balanceLamports: balance };
+    }
+    const lamports = minimumLamports - balance;
+    const tx = new Transaction().add(SystemProgram.transfer({
+      fromPubkey: this.keypair.publicKey,
+      toPubkey: recipientKey,
+      lamports,
+    }));
+    const latest = await this.baseConnection.getLatestBlockhash('confirmed');
+    tx.feePayer = this.keypair.publicKey;
+    tx.recentBlockhash = latest.blockhash;
+    tx.sign(this.keypair);
+    const signature = await this.baseConnection.sendRawTransaction(tx.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: 'confirmed',
+    });
+    await this.baseConnection.confirmTransaction(signature, 'confirmed');
+    return { funded: true, balanceLamports: minimumLamports, signature, lamports };
+  }
+
+  async buildDeposit({ owner, amountLamports }) {
+    return this.paymentsRequest('/v1/spl/deposit', {
+      owner,
       amount: amountLamports,
       cluster: this.cluster,
       mint: this.mint,
-      visibility: 'private',
       validator: this.validatorId,
-      memo,
-      fromBalance: 'base',
-      toBalance: 'ephemeral',
+      initIfMissing: true,
+      initVaultIfMissing: true,
     });
   }
 
-  async buildEphemeralPayout({ from, to, amountLamports, memo, toBalance = 'base' }) {
+  async buildPrivateTransfer({ from, to, amountLamports, memo }) {
     return this.paymentsRequest('/v1/spl/transfer', {
       from,
       to,
@@ -207,7 +228,17 @@ class PrivatePaymentsClient {
       validator: this.validatorId,
       memo,
       fromBalance: 'ephemeral',
-      toBalance,
+      toBalance: 'ephemeral',
+    });
+  }
+
+  async buildWithdraw({ owner, amountLamports }) {
+    return this.paymentsRequest('/v1/spl/withdraw', {
+      owner,
+      amount: amountLamports,
+      cluster: this.cluster,
+      mint: this.mint,
+      validator: this.validatorId,
     });
   }
 
@@ -255,4 +286,3 @@ class PrivatePaymentsClient {
 module.exports = {
   PrivatePaymentsClient,
 };
-

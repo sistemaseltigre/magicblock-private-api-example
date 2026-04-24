@@ -1,47 +1,37 @@
-# MagicBlock Private Payments Reproducer
+# MagicBlock Private Payments PvP Betting Example
 
-This repository is a minimal, standalone reproduction of the private PvP betting flow we are building for an MMORPG on Solana.
+This repository is a minimal, standalone example of the private PvP betting flow we are building for an MMORPG on Solana.
 
 The real product flow is:
 
 1. Two fighters accept a scheduled PvP match inside the game.
 2. Betting opens publicly.
 3. Bettors fund the wager privately using `wSOL` under the hood while the UI still presents the product as `SOL`.
-4. After the match result is known, the 10% game fee goes to the game wallet and the other 90% is distributed proportionally to the winning bettors.
-5. We want both the wager intake and the payout movement to remain private at the fund-movement layer.
+4. After the match result is known, the 10% game fee goes to the game wallet and the other 90% is distributed proportionally to winning bettors.
+5. We want both the wager intake and the payout movement to avoid publicly revealing who backed which fighter.
 
-This repository does **not** include the game. It only includes the smallest code needed to demonstrate the private payments behavior we need from MagicBlock.
+This repository does **not** include the game. It only includes the smallest code needed to demonstrate the private payments behavior.
 
-## What This Reproducer Shows
+## Current Flow
 
-The current status from our devnet tests is:
+After MagicBlock reviewed the first repro, we changed the example to use the canonical routes:
 
-- `initialize-mint` works
-- TEE auth token retrieval works
-- `base -> ephemeral` private intake works
-- payout math works
-- the payout transaction can be built by the Private Payments API
-- but the treasury-side payout submission fails during the `sendTo=ephemeral` step
+- intake: `POST /v1/spl/deposit`
+- private payout: `POST /v1/spl/transfer` as `ephemeral -> ephemeral`
+- recipient exit: `POST /v1/spl/withdraw`
 
-The failure we are trying to isolate is the payout path:
-
-- expected path: `ephemeral -> base` private payout from treasury/custody wallet to the winner wallet
-- current live error in devnet: `ephemeral_transaction_failed:"InvalidWritableAccount"`
+This matches the guidance that direct treasury `ephemeral -> base` payout to an external recipient is not the correct route. The recipient must first have a private balance account, receive the private transfer, and then withdraw with their own wallet.
 
 ## Repository Contents
 
 - `src/privatePaymentsClient.js`
-  Minimal client for:
-  - TEE auth token retrieval
-  - mint initialization
-  - `base -> ephemeral` transfer build and submission
-  - `ephemeral -> base` payout build and submission
+  Minimal client for TEE auth, mint initialization, deposit, private transfer, and withdraw.
 - `src/bettingMath.js`
-  Simple proportional payout math for a PvP betting pool
+  Simple proportional payout math for a PvP betting pool.
 - `tests/local-betting-simulation.test.js`
-  Local deterministic simulation of the betting split
+  Local deterministic simulation of the betting split.
 - `scripts/reproduce-devnet.js`
-  End-to-end devnet reproducer
+  End-to-end devnet flow using the corrected route.
 
 ## Install
 
@@ -53,7 +43,12 @@ cp .env.example .env
 Fill at least:
 
 - `SERVER_PRIVATE_KEY`
-- optionally `PAYOUT_RECIPIENT`
+
+Optional:
+
+- `RECIPIENT_PRIVATE_KEY`
+
+If `RECIPIENT_PRIVATE_KEY` is not provided, the devnet script generates a temporary recipient keypair and funds it from `SERVER_PRIVATE_KEY` for fees and initialization.
 
 ## Commands
 
@@ -63,71 +58,28 @@ Run the local deterministic betting simulation:
 npm test
 ```
 
-Run the real devnet reproduction against MagicBlock:
+Run the real devnet flow against MagicBlock:
 
 ```bash
 npm run test:devnet
 ```
 
-A sample successful reproduction report is stored in [docs/last-devnet-report.json](./docs/last-devnet-report.json).
+A previous report from the older failing route is stored in [docs/last-devnet-report.json](./docs/last-devnet-report.json). New reports should show `canonical_flow_succeeded` if the corrected flow succeeds.
 
 ## Expected Devnet Behavior
 
-When `npm run test:devnet` runs successfully as a reproducer, you should see:
+When `npm run test:devnet` succeeds, it should:
 
-1. TEE identity matches the configured validator
-2. mint is initialized or initialization succeeds
-3. the script ensures the signer has enough base `wSOL`
-4. a private `base -> ephemeral` intake transaction succeeds
-5. payout math is computed
-6. a private `ephemeral -> base` payout transaction is built
-7. the final payout submission fails with the current issue
+1. Verify TEE identity.
+2. Ensure the private mint is initialized.
+3. Ensure the custody wallet has base `wSOL`.
+4. Deposit custody funds from base balance into private balance.
+5. Fund and initialize a recipient private balance.
+6. Compute PvP betting payouts.
+7. Transfer the winner payout privately from custody to recipient as `ephemeral -> ephemeral`.
+8. Withdraw from the recipient private balance back to base balance with the recipient signer.
 
-The script intentionally treats the payout failure as the expected reproduction target and prints a JSON report.
-
-## Why This Matters
-
-Our product requirement is not just private intake. We need **private payout** from the custody/treasury wallet after the match result is finalized.
-
-The intake side already demonstrates that the private betting concept is viable:
-
-- bettor funds move into a private balance
-- public observers do not need to see which fighter that wallet backed
-
-But the product is incomplete unless the treasury can also distribute winnings privately.
-
-## What We Think Is Happening
-
-The reproduction indicates that:
-
-- the Private Payments API can build the payout transaction
-- the TEE auth flow works
-- the TEE validator identity matches what we expect
-- but submission of the payout transaction fails with `InvalidWritableAccount`
-
-This suggests either:
-
-- a route-specific constraint for treasury-side private payouts
-- an account preparation step we are missing for the payout route
-- a required queue / vault / permission setup not needed for the intake path
-- or a mismatch between the built transaction and the required TEE writable-account blockhash derivation for this route
-
-## What We Need Help Confirming
-
-We would appreciate guidance on the correct production/devnet flow for this specific requirement:
-
-- bettor funds enter privately via `base -> ephemeral`
-- treasury/custody wallet holds the private pool
-- treasury later pays winners privately via `ephemeral -> base`
-
-Questions:
-
-1. Is `ephemeral -> base` from the treasury wallet the correct payout route for this use case?
-2. If yes, what extra setup is required before submission?
-3. If no, what is the correct private payout route for a custody wallet distributing winnings?
-4. Are we missing a queue, permission, delegated ATA, vault ATA, merge, or shuttle step for payout?
-
-## Environment Used In The Reproduction
+## Environment Used
 
 - Solana cluster: `devnet`
 - Private settlement asset: `wSOL`
@@ -135,7 +87,13 @@ Questions:
 - TEE RPC: `https://devnet-tee.magicblock.app`
 - Validator: `MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`
 
-## Notes
+## Product Implication
 
-- Everything in this repository is written in English to make it easy to share directly with the MagicBlock team.
-- The goal is reproducibility, not app completeness.
+For the game implementation, this means automatic final payout directly from treasury private balance to a winner's public base balance is not the right model.
+
+The implementable model is:
+
+1. The treasury sends private winnings to each winner's private balance.
+2. Each winner withdraws to base balance with their own wallet.
+3. The game can still automate pool math, payout queueing, winner notification, and construction of the unsigned withdraw transaction.
+
