@@ -1,99 +1,199 @@
 # MagicBlock Private Payments PvP Betting Example
 
-This repository is a minimal, standalone example of the private PvP betting flow we are building for an MMORPG on Solana.
+This repository is a practical Node.js example for building a private PvP betting settlement flow on Solana with the MagicBlock Private Payments API.
 
-The real product flow is:
+It is intentionally not a full game. It focuses on the settlement pattern that a game, tournament app, or PvP betting page can reuse:
 
-1. Two fighters accept a scheduled PvP match inside the game.
-2. Betting opens publicly.
-3. Bettors fund the wager privately using `wSOL` under the hood while the UI still presents the product as `SOL`.
-4. After the match result is known, the 10% game fee goes to the game wallet and the other 90% is distributed proportionally to winning bettors.
-5. We want both the wager intake and the payout movement to avoid publicly revealing who backed which fighter.
+1. Bettors choose one fighter and stake an allowed amount.
+2. Public game state can show fight metadata, total pool, and side totals.
+3. Private settlement hides the movement of funds through MagicBlock private balances.
+4. After the fight winner is known, the pool is split automatically.
+5. Winners receive a private balance credit and withdraw with their own wallet.
 
-This repository does **not** include the game. It only includes the smallest code needed to demonstrate the private payments behavior.
+## Why This Example Exists
 
-## Current Flow
+The common mistake is trying to use `POST /v1/spl/transfer` for both legs:
 
-After MagicBlock reviewed the first repro, we changed the example to use the canonical routes:
+- base wallet -> ephemeral/private balance
+- ephemeral/private treasury -> external base wallet
 
-- intake: `POST /v1/spl/deposit`
-- private payout: `POST /v1/spl/transfer` as `ephemeral -> ephemeral`
-- recipient exit: `POST /v1/spl/withdraw`
+The canonical pattern used here is:
 
-This matches the guidance that direct treasury `ephemeral -> base` payout to an external recipient is not the correct route. The recipient must first have a private balance account, receive the private transfer, and then withdraw with their own wallet.
+- Intake: `POST /v1/spl/deposit`
+- Private payout credit: `POST /v1/spl/transfer` with `fromBalance=ephemeral` and `toBalance=ephemeral`
+- Exit to base wallet: `POST /v1/spl/withdraw`
 
-## Repository Contents
+This means the app can automate winner calculations and private credits, while each winner signs their own withdraw transaction to move funds back to their base wallet.
+
+## Pool Rules
+
+The included betting math follows this split:
+
+- `10%` game fee
+- `20%` winning fighter reward
+- `70%` winning bettor pool
+
+The winning bettor pool is distributed pro-rata by stake size. Optional MagicBlock or operational costs can be deducted from the bettor pool before pro-rata distribution.
+
+Allowed total stake tiers per wallet per fight:
+
+- `0.01 SOL`
+- `0.03 SOL`
+- `0.05 SOL`
+
+A wallet may increase from `0.01 -> 0.03 -> 0.05`, but cannot decrease or bet both sides in the same fight. This repo only demonstrates the math and settlement pieces; production apps must enforce those rules in their API/database layer.
+
+## What Is Private
+
+This example is designed so the sensitive settlement leg can be private:
+
+- Deposits move a bettor's base token balance into a MagicBlock private balance.
+- Treasury-to-winner credits happen as private balance transfers.
+- Winners withdraw from their private balance when they choose.
+
+Your public app can still show non-sensitive aggregate data such as fight ID, fighters, total pool, side totals, payout status, and winner name.
+
+## Repository Structure
 
 - `src/privatePaymentsClient.js`
-  Minimal client for TEE auth, mint initialization, deposit, private transfer, and withdraw.
-- `src/bettingMath.js`
-  Simple proportional payout math for a PvP betting pool.
-- `tests/local-betting-simulation.test.js`
-  Local deterministic simulation of the betting split.
-- `scripts/reproduce-devnet.js`
-  End-to-end devnet flow using the corrected route.
+  Reusable client for MagicBlock Private Payments API auth, mint initialization, deposit, private transfer, withdraw, TEE RPC submission, and transaction validation helpers.
 
-## Install
+- `src/bettingMath.js`
+  Deterministic PvP betting math with allowed stake tiers and `10/20/70` pro-rata distribution.
+
+- `scripts/reproduce-devnet.js`
+  Dry-run simulation by default, plus an opt-in live devnet smoke flow.
+
+- `tests/local-betting-simulation.test.js`
+  Unit tests for stake tiers, payout splits, pro-rata distribution, and operational-cost deduction.
+
+## Requirements
+
+- Node.js `>=18`
+- A funded devnet keypair only if running the live devnet flow
+- MagicBlock Private Payments API access
+- Solana devnet RPC
+
+Install dependencies:
 
 ```bash
 npm install
 cp .env.example .env
 ```
 
-Fill at least:
-
-- `SERVER_PRIVATE_KEY`
-
-Optional:
-
-- `RECIPIENT_PRIVATE_KEY`
-
-If `RECIPIENT_PRIVATE_KEY` is not provided, the devnet script generates a temporary recipient keypair and funds it from `SERVER_PRIVATE_KEY` for fees and initialization.
-
 ## Commands
 
-Run the local deterministic betting simulation:
+Run deterministic local tests:
 
 ```bash
 npm test
 ```
 
-Run the real devnet flow against MagicBlock:
+Run syntax checks:
 
 ```bash
-npm run test:devnet
+npm run check
 ```
 
-A previous report from the older failing route is stored in [docs/last-devnet-report.json](./docs/last-devnet-report.json). New reports should show `canonical_flow_succeeded` if the corrected flow succeeds.
+Run a local dry-run simulation. This does not call Solana or MagicBlock:
 
-## Expected Devnet Behavior
+```bash
+npm run simulate
+```
 
-When `npm run test:devnet` succeeds, it should:
+Run the live devnet smoke flow:
 
-1. Verify TEE identity.
-2. Ensure the private mint is initialized.
-3. Ensure the custody wallet has base `wSOL`.
-4. Deposit custody funds from base balance into private balance.
-5. Fund and initialize a recipient private balance.
-6. Compute PvP betting payouts.
-7. Transfer the winner payout privately from custody to recipient as `ephemeral -> ephemeral`.
-8. Withdraw from the recipient private balance back to base balance with the recipient signer.
+```bash
+npm run devnet:live
+```
 
-## Environment Used
+The live command is intentionally devnet-only. It requires `SERVER_PRIVATE_KEY` in `.env`.
 
-- Solana cluster: `devnet`
-- Private settlement asset: `wSOL`
-- Payments API: `https://payments.magicblock.app`
-- TEE RPC: `https://devnet-tee.magicblock.app`
-- Validator: `MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`
+## Environment
 
-## Product Implication
+```bash
+SOLANA_NETWORK=devnet
+SOLANA_RPC=https://api.devnet.solana.com
+SERVER_PRIVATE_KEY=
+RECIPIENT_PRIVATE_KEY=
+PVP_BETTING_PRIVATE_MINT=So11111111111111111111111111111111111111112
+MAGICBLOCK_PAYMENTS_API_URL=https://payments.magicblock.app
+MAGICBLOCK_PRIVATE_TEE_URL=https://devnet-tee.magicblock.app
+PVP_BETTING_MAGICBLOCK_VALIDATOR_ID=MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo
+DEMO_DEPOSIT_SOL=0.01
+ESTIMATED_MAGICBLOCK_COST_SOL=0
+```
 
-For the game implementation, this means automatic final payout directly from treasury private balance to a winner's public base balance is not the right model.
+Never commit `.env` or production private keys. The live script should be run only with disposable devnet keys.
 
-The implementable model is:
+## Live Devnet Flow
 
-1. The treasury sends private winnings to each winner's private balance.
-2. Each winner withdraws to base balance with their own wallet.
-3. The game can still automate pool math, payout queueing, winner notification, and construction of the unsigned withdraw transaction.
+`npm run devnet:live` performs this smoke test:
 
+1. Authenticates against MagicBlock Private Payments / TEE.
+2. Verifies the TEE identity.
+3. Ensures the private mint is initialized.
+4. Wraps enough devnet SOL into wSOL for the demo deposit.
+5. Builds and submits a `deposit` transaction from custody base balance to custody private balance.
+6. Creates or funds a demo recipient for fees.
+7. Initializes the recipient private balance with a small deposit.
+8. Builds and submits a private `transfer` from custody private balance to recipient private balance.
+9. Builds and submits a `withdraw` from recipient private balance to recipient base balance.
+
+For a browser wallet integration, the server should build unsigned transactions and verify returned signed transactions before submitting them. See `assertUnsignedTransactionSigner`, `verifySignedTransactionMatches`, and `submitSignedTransaction` in `src/privatePaymentsClient.js`.
+
+## Production API Pattern
+
+A production service should usually expose endpoints similar to:
+
+- `POST /fights/:id/bets/prepare`
+  Validate fight status, side, wallet eligibility, stake tier, and wallet-side uniqueness. Build unsigned wrap/deposit transactions.
+
+- `POST /fights/:id/bets/commit`
+  Verify the user's signed transaction matches the unsigned transaction prepared by the server, then submit it to the correct destination.
+
+- `POST /fights/:id/settle`
+  After the fight result is final, compute the split and queue private winner credits.
+
+- `POST /rewards/:id/withdraw/prepare`
+  Build an unsigned withdraw transaction for the connected winner wallet.
+
+- `POST /rewards/:id/withdraw/commit`
+  Verify and submit the signed withdraw transaction.
+
+Important safeguards:
+
+- Use signed wallet messages or session tokens for user endpoints.
+- Never trust client-provided amounts, side totals, fight status, or payout math.
+- Store prepared transaction hashes/nonces and expire them quickly.
+- Reject signed transactions whose instructions/accounts differ from the server-built transaction.
+- Rate-limit public list/search endpoints.
+- Keep treasury private keys server-side only.
+
+## Notes About SOL and wSOL
+
+The Private Payments API works with SPL tokens. This example uses the native wrapped SOL mint:
+
+```text
+So11111111111111111111111111111111111111112
+```
+
+The UI can present this as SOL, but under the hood users need enough SOL for:
+
+- the stake amount that gets wrapped/deposited as wSOL
+- normal Solana transaction fees
+- possibly creating an associated token account the first time
+
+## Mainnet
+
+This repository defaults to devnet. Before adapting it to mainnet:
+
+- Confirm the current MagicBlock production endpoints and validator ID with MagicBlock.
+- Confirm final API authentication requirements and costs.
+- Test with very small amounts first.
+- Use isolated custody wallets and strict operational controls.
+- Add monitoring and manual freeze/review controls before automatic payout release.
+
+## Previous Report
+
+`docs/last-devnet-report.json` is kept as a historical debugging artifact. The current implementation follows the corrected canonical route described above.

@@ -1,88 +1,75 @@
 {
-  "startedAt": "2026-04-24T21:32:46.842Z",
+  "mode": "live-devnet",
+  "startedAt": "2026-05-09T15:07:59.658Z",
   "custodyWallet": "FT19FN2Fop3VJ3vfv3bA3TjBUx9etgXJDbGWjzRj8EEX",
-  "recipientWallet": "GZWbe4NZJB18HfgdHsaaohNDCMwMkDpGGEanmGDgwXUJ",
+  "recipientWallet": "716CBsTNXwFQkwwDcaEhMj5NwcafjWKNL6QgxPr6bbwp",
   "recipientKeypairWasGenerated": true,
+  "cluster": "devnet",
+  "baseRpcUrl": "https://api.devnet.solana.com",
+  "paymentsApiUrl": "https://payments.magicblock.app",
+  "teeUrl": "https://devnet-tee.magicblock.app",
   "validatorId": "MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo",
   "mint": "So11111111111111111111111111111111111111112",
   "steps": [
     {
-      "step": "tee_identity",
+      "step": "verify_tee_identity",
       "ok": true,
       "teeIdentity": "MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo"
     },
     {
-      "step": "ensure_mint_initialized",
+      "step": "ensure_private_mint_initialized",
       "ok": true,
-      "signature": null
+      "initializeSignature": null
     },
     {
-      "step": "custody_ensure_base_wsol",
+      "step": "custody_wrap_sol_for_demo_deposit",
       "ok": true,
       "wrapped": true,
-      "ata": "Cc3kw3eDZfjds8GAspYhhK2vUfnBaCpCHnDp5bCXZN5X",
-      "signature": "aZsAPmDvDsfJdh7u1rUi4rGNJfZXdZaBDf7x8mRYUBqhoZ4uhhj8jdBeY9wE7fuHSK4e1H4CnTY75Z4C9qynxKr"
+      "signature": "3skunW4DHnvNastiTK74Jmdu727MUXszAtco3f3PHRtMDPi2y1A9VfRydXJ3ExjkdZbroSuzi57pMtqfyywgew35"
     },
     {
-      "step": "private_bet_intake_deposit_base_to_ephemeral",
+      "step": "deposit_base_to_ephemeral",
       "ok": true,
       "sendTo": "base",
-      "signature": "4i4X36mkgzLJJKXHJ3kKuUAFFf7gnitCzD2SJocTg2hshuW5crwzCFLN6xLR2eFUiXASuft57Dhqgg1d38fG3qLy"
+      "signature": "HNmoRmKrbENrPHtFLuxTqutCa1VJZ5ERn9sqUw9PzqCf5tKGMEt8ujYdofwQzbYmnifjHXdKnZpYycktRUxNHxx",
+      "amountSol": 0.01
     },
     {
       "step": "fund_recipient_for_devnet_fees",
       "ok": true,
       "funded": true,
       "balanceLamports": 20000000,
-      "signature": "5QpGdstB1Nf5AfKcGR3LRmd3obtDmRk6tP6Ly24kAfbSYjWaz8KVvmSun38q5nsweAZdKbs7UST14nznXwQdA9ZR",
-      "lamports": 20000000
+      "lamports": 20000000,
+      "signature": "4D7xY4FX2hYqh4HSZsh3Fufr5Dt3mDVcrrt1zhiNJeicpNWfeCrUAwPq6txTD3YWAp9vw7w2cZ1QcDHriFMbU2gw"
     },
     {
-      "step": "recipient_ensure_base_wsol",
+      "step": "recipient_wrap_small_sol_for_private_account_init",
       "ok": true,
       "wrapped": true,
-      "ata": "AgQrGFWuoEWQc9iYkzmyfa3ucgDxqG73R57paDFFNFTx",
-      "signature": "5UYkbhDQNJcBPBYB7SB7gjdmQLS98e2gTnvpWi38Gd6JQtKzEombf78FUNTVH73VpS2GaBnhrPtGyAp4dANtcS7S"
+      "signature": "3n8TcPSRDZjRNi2bnsN2CWaDWuieVSEqhsYQCuQPsMC9UnNWFnCf1MX5WnrrVjTQ9U3bTWq8A3N778XgpebPYHej"
     },
     {
       "step": "recipient_initialize_private_balance_with_deposit",
       "ok": true,
       "sendTo": "base",
-      "signature": "4hnpeRE9NaQDMGczupGiZCNFZv2qczSMpgVA2CB5pCS2gVBYPp8rPQwdet8mompLB8Hp8sS2cwa5p1vQ8KMqYpzg"
+      "signature": "3tBPrjdTkNJ5dKhXSS9Edn2ytTiVmK1gewsaxinA3XbeD6Qrm14k3WfubPAzeYJ6a8bRt5hsZ6zmeaaziPNr5wH3"
     },
     {
-      "step": "compute_payouts",
+      "step": "private_transfer_custody_to_winner_private_balance",
       "ok": true,
-      "gameFeeLamports": 1000000,
-      "winnerPoolLamports": 9000000,
-      "payouts": [
-        {
-          "wallet": "GZWbe4NZJB18HfgdHsaaohNDCMwMkDpGGEanmGDgwXUJ",
-          "fighter": "fighter_a",
-          "stakeLamports": 10000000,
-          "payoutLamports": 9000000
-        }
-      ]
+      "sendTo": "ephemeral",
+      "signature": "3He8MjDKsDeFJDRhRUzD3Sp2Vb1MRPSc2orhkrfqLg8EHeA8XYKWDPvCNRuwQ4jn9HwUSeAZQUwcAzHce4stYksa",
+      "amountSol": 0.01
     },
     {
-      "step": "build_private_payout_ephemeral_to_ephemeral",
-      "ok": true,
-      "sendTo": "ephemeral"
-    },
-    {
-      "step": "submit_private_payout_ephemeral_to_ephemeral",
-      "ok": true,
-      "signature": "4QcsttjbxkqPaCPWWahGWL73tRfB7JadayPZ7qLZQz9EhWELnWR9dJ8NyazpGFeveDN9a7DkSzxG7NcX3tY9Dfk"
-    },
-    {
-      "step": "recipient_withdraw_ephemeral_to_base",
+      "step": "winner_withdraw_private_balance_to_base",
       "ok": true,
       "sendTo": "base",
-      "signature": "kRSrv8WaJUP3GLDC8jjLckxGh2cUpsEhXhUQuUeFwg6uX1wegP3aRe4e23jzV4UGJmXiWApQePftZxYKEGL38q9"
+      "signature": "3HRX6oEQYUZV1UbSwFdkzfy17x6U94ArJuWyghNJ21TYoLxXCoMsNBpkbEqdurYVW5wvY9Cibb8YXka1jxKeohgB"
     }
   ],
   "summary": {
     "status": "canonical_flow_succeeded",
-    "note": "Deposit intake, private transfer payout, and recipient withdraw all succeeded on devnet."
+    "note": "The live devnet script used deposit for intake, private transfer for winner private credit, and withdraw for winner exit."
   }
 }
