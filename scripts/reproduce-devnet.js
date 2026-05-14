@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 require('dotenv').config();
 
+const fs = require('fs');
+const path = require('path');
 const { Keypair } = require('@solana/web3.js');
 const { parseKeypair } = require('../src/keypair');
 const { PrivatePaymentsClient } = require('../src/privatePaymentsClient');
@@ -68,10 +70,10 @@ function printDryRunReport() {
   const report = {
     mode: 'dry-run',
     summary: 'Local deterministic PvP betting distribution. No RPC or MagicBlock request is made.',
-    canonicalPrivatePaymentsFlow: [
-      'bettor base balance -> bettor private balance: POST /v1/spl/deposit',
-      'custody private balance -> winner private balance: POST /v1/spl/transfer with fromBalance=ephemeral and toBalance=ephemeral',
-      'winner private balance -> winner base balance: POST /v1/spl/withdraw signed by winner',
+    currentDevnetFinding: [
+      'Intake succeeds with POST /v1/spl/transfer using fromBalance=base and toBalance=ephemeral.',
+      'Treasury private payout currently fails with POST /v1/spl/transfer using fromBalance=ephemeral and toBalance=ephemeral for wSOL on devnet.',
+      'Same-owner withdraw from treasury private balance can work, but that is not the private external payout needed by the betting product.',
     ],
     fight: {
       fightId: fight.fightId,
@@ -97,11 +99,21 @@ function printDryRunReport() {
   console.log(JSON.stringify(report, null, 2));
 }
 
-function parseRecipientKeypair() {
-  if (env('RECIPIENT_PRIVATE_KEY')) {
-    return { keypair: parseKeypair(env('RECIPIENT_PRIVATE_KEY')), generated: false };
+async function tryStep(report, step, fn) {
+  try {
+    const result = await fn();
+    report.steps.push({ step, ok: true, ...result });
+    return { ok: true, result };
+  } catch (error) {
+    const message = error?.message || String(error);
+    report.steps.push({ step, ok: false, error: message });
+    return { ok: false, error: message };
   }
-  return { keypair: Keypair.generate(), generated: true };
+}
+
+function writeReport(report) {
+  const reportPath = path.join(__dirname, '..', 'docs', 'last-devnet-report.json');
+  fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 }
 
 async function runLiveDevnet() {
@@ -113,124 +125,162 @@ async function runLiveDevnet() {
   }
 
   const custodyKeypair = parseKeypair(env('SERVER_PRIVATE_KEY'));
-  const recipient = parseRecipientKeypair();
+  const bettorKeypair = env('BETTOR_PRIVATE_KEY') ? parseKeypair(env('BETTOR_PRIVATE_KEY')) : Keypair.generate();
+  const recipientKeypair = env('RECIPIENT_PRIVATE_KEY') ? parseKeypair(env('RECIPIENT_PRIVATE_KEY')) : Keypair.generate();
   const custodyClient = createClient(custodyKeypair);
-  const recipientClient = createClient(recipient.keypair, custodyClient);
-  const fight = createDemoFight();
-  const demoDepositLamports = solToLamports(Number(env('DEMO_DEPOSIT_SOL', '0.01')));
-  const demoPayoutLamports = Math.min(fight.distribution.payouts[0].payoutLamports, demoDepositLamports);
+  const bettorClient = createClient(bettorKeypair, custodyClient);
+  const recipientClient = createClient(recipientKeypair, custodyClient);
+
+  const intakeLamports = solToLamports(Number(env('DEMO_INTAKE_SOL', env('DEMO_DEPOSIT_SOL', '0.01'))));
+  const payoutLamports = solToLamports(Number(env('DEMO_PAYOUT_SOL', '0.005')));
+  const bettorWrapLamports = Math.max(solToLamports(Number(env('DEMO_BETTOR_WRAP_SOL', '0.05'))), intakeLamports);
+  const recipientInitLamports = solToLamports(Number(env('DEMO_RECIPIENT_INIT_SOL', '0.001')));
 
   const report = {
     mode: 'live-devnet',
     startedAt: new Date().toISOString(),
+    purpose: 'Reproduce the current wSOL Private Payments payout issue for MagicBlock support.',
     custodyWallet: custodyClient.walletAddress,
+    bettorWallet: bettorClient.walletAddress,
     recipientWallet: recipientClient.walletAddress,
-    recipientKeypairWasGenerated: recipient.generated,
+    bettorKeypairWasGenerated: !env('BETTOR_PRIVATE_KEY'),
+    recipientKeypairWasGenerated: !env('RECIPIENT_PRIVATE_KEY'),
     cluster: custodyClient.cluster,
     baseRpcUrl: custodyClient.baseRpcUrl,
     paymentsApiUrl: custodyClient.paymentsApiUrl,
     teeUrl: custodyClient.teeUrl,
     validatorId: custodyClient.validatorId,
     mint: custodyClient.mint,
+    amounts: {
+      intakeSol: lamportsToSol(intakeLamports),
+      payoutSol: lamportsToSol(payoutLamports),
+      bettorWrapSol: lamportsToSol(bettorWrapLamports),
+      recipientInitSol: lamportsToSol(recipientInitLamports),
+    },
     steps: [],
   };
 
-  const teeIdentity = await custodyClient.getTeeIdentity();
-  report.steps.push({ step: 'verify_tee_identity', ok: teeIdentity === custodyClient.validatorId, teeIdentity });
-
-  const mintInit = await custodyClient.ensureMintInitialized();
-  report.steps.push({ step: 'ensure_private_mint_initialized', ok: true, initializeSignature: mintInit.initializeSignature || null });
-
-  const custodyWrap = await custodyClient.wrapSolIfNeeded(demoDepositLamports);
-  report.steps.push({
-    step: 'custody_wrap_sol_for_demo_deposit',
-    ok: true,
-    wrapped: custodyWrap.wrapped,
-    ata: custodyWrap.ata || null,
-    signature: custodyWrap.signature || null,
+  await tryStep(report, 'verify_tee_identity', async () => {
+    const teeIdentity = await custodyClient.getTeeIdentity();
+    return { teeIdentity, matchesExpectedValidator: teeIdentity === custodyClient.validatorId };
   });
 
-  const depositBuilt = await custodyClient.buildDeposit({
-    owner: custodyClient.walletAddress,
-    amountLamports: demoDepositLamports,
-  });
-  custodyClient.assertUnsignedTransactionSigner({
-    transactionBase64: depositBuilt.transactionBase64,
-    signerWallet: custodyClient.walletAddress,
-    label: 'deposit',
-  });
-  const depositSignature = await custodyClient.signAndSubmitBuiltTransaction(depositBuilt);
-  report.steps.push({
-    step: 'deposit_base_to_ephemeral',
-    ok: true,
-    sendTo: depositBuilt.sendTo,
-    signature: depositSignature,
-    amountSol: lamportsToSol(demoDepositLamports),
+  await tryStep(report, 'ensure_private_mint_initialized', async () => {
+    const mintInit = await custodyClient.ensureMintInitialized();
+    return { initializeSignature: mintInit.initializeSignature || null };
   });
 
-  const recipientFunding = await custodyClient.transferSolIfNeeded({
-    recipient: recipientClient.walletAddress,
-    minimumLamports: solToLamports(0.02),
-  });
-  report.steps.push({ step: 'fund_recipient_for_devnet_fees', ok: true, ...recipientFunding });
+  await tryStep(report, 'fund_bettor_for_devnet_wrap_and_fees', async () => (
+    custodyClient.transferSolIfNeeded({
+      recipient: bettorClient.walletAddress,
+      minimumLamports: solToLamports(Number(env('DEMO_BETTOR_SOL_FUNDING', '0.08'))),
+    })
+  ));
 
-  const recipientWrap = await recipientClient.wrapSolIfNeeded(solToLamports(0.001));
-  report.steps.push({
-    step: 'recipient_wrap_small_sol_for_private_account_init',
-    ok: true,
-    wrapped: recipientWrap.wrapped,
-    ata: recipientWrap.ata || null,
-    signature: recipientWrap.signature || null,
-  });
+  await tryStep(report, 'fund_recipient_for_devnet_init_and_fees', async () => (
+    custodyClient.transferSolIfNeeded({
+      recipient: recipientClient.walletAddress,
+      minimumLamports: solToLamports(Number(env('DEMO_RECIPIENT_SOL_FUNDING', '0.03'))),
+    })
+  ));
 
-  const recipientInitBuilt = await recipientClient.buildDeposit({
-    owner: recipientClient.walletAddress,
-    amountLamports: solToLamports(0.001),
+  const bettorWrap = await tryStep(report, 'bettor_wrap_sol_to_wsol_base_balance', async () => {
+    const wrapped = await bettorClient.wrapSolIfNeeded(bettorWrapLamports);
+    const balance = await bettorClient.waitForBaseTokenBalanceLamports(bettorClient.walletAddress, intakeLamports);
+    return { ...wrapped, baseTokenBalanceLamports: balance?.amountLamports || 0 };
   });
-  const recipientInitSignature = await recipientClient.signAndSubmitBuiltTransaction(recipientInitBuilt);
-  report.steps.push({
-    step: 'recipient_initialize_private_balance_with_deposit',
-    ok: true,
-    sendTo: recipientInitBuilt.sendTo,
-    signature: recipientInitSignature,
-  });
+  if (!bettorWrap.ok) {
+    report.summary = { status: 'blocked_before_intake', reason: bettorWrap.error };
+    writeReport(report);
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
 
-  const privatePayoutBuilt = await custodyClient.buildPrivateTransfer({
-    from: custodyClient.walletAddress,
-    to: recipientClient.walletAddress,
-    amountLamports: demoPayoutLamports,
-    memo: 'mb-example-private-payout',
-  });
-  const privatePayoutSignature = await custodyClient.signAndSubmitBuiltTransaction(privatePayoutBuilt);
-  report.steps.push({
-    step: 'private_transfer_custody_to_winner_private_balance',
-    ok: true,
-    sendTo: privatePayoutBuilt.sendTo,
-    signature: privatePayoutSignature,
-    amountSol: lamportsToSol(demoPayoutLamports),
-  });
-
-  const withdrawBuilt = await recipientClient.buildWithdraw({
-    owner: recipientClient.walletAddress,
-    amountLamports: demoPayoutLamports,
-  });
-  recipientClient.assertUnsignedTransactionSigner({
-    transactionBase64: withdrawBuilt.transactionBase64,
-    signerWallet: recipientClient.walletAddress,
-    label: 'withdraw',
-  });
-  const withdrawSignature = await recipientClient.signAndSubmitBuiltTransaction(withdrawBuilt);
-  report.steps.push({
-    step: 'winner_withdraw_private_balance_to_base',
-    ok: true,
-    sendTo: withdrawBuilt.sendTo,
-    signature: withdrawSignature,
+  const intake = await tryStep(report, 'private_intake_base_to_treasury_ephemeral_transfer', async () => {
+    const built = await bettorClient.buildBaseToPrivateTransfer({
+      from: bettorClient.walletAddress,
+      to: custodyClient.walletAddress,
+      amountLamports: intakeLamports,
+      memo: 'mb-example-intake',
+    });
+    bettorClient.assertUnsignedTransactionSigner({
+      transactionBase64: built.transactionBase64,
+      signerWallet: bettorClient.walletAddress,
+      label: 'base_to_ephemeral_intake',
+    });
+    const signature = await bettorClient.signAndSubmitBuiltTransaction(built, bettorKeypair);
+    const custodyPrivateBalance = await custodyClient.getPrivateTokenBalanceLamports(custodyClient.walletAddress)
+      .catch((error) => ({ error: error.message }));
+    return {
+      sendTo: built.sendTo,
+      signature,
+      amountSol: lamportsToSol(intakeLamports),
+      custodyPrivateBalanceLamports: custodyPrivateBalance.amountLamports,
+      custodyPrivateBalanceError: custodyPrivateBalance.error,
+    };
   });
 
-  report.summary = {
-    status: 'canonical_flow_succeeded',
-    note: 'The live devnet script used deposit for intake, private transfer for winner private credit, and withdraw for winner exit.',
-  };
+  if (!intake.ok) {
+    report.summary = { status: 'intake_failed', reason: intake.error };
+    writeReport(report);
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  await tryStep(report, 'recipient_initialize_private_balance_optional_control', async () => {
+    await recipientClient.wrapSolIfNeeded(recipientInitLamports);
+    await recipientClient.waitForBaseTokenBalanceLamports(recipientClient.walletAddress, recipientInitLamports);
+    const built = await recipientClient.buildBaseToPrivateTransfer({
+      from: recipientClient.walletAddress,
+      to: recipientClient.walletAddress,
+      amountLamports: recipientInitLamports,
+      memo: 'mb-example-recipient-init',
+    });
+    const signature = await recipientClient.signAndSubmitBuiltTransaction(built, recipientKeypair);
+    const recipientPrivateBalance = await recipientClient.getPrivateTokenBalanceLamports(recipientClient.walletAddress)
+      .catch((error) => ({ error: error.message }));
+    return {
+      sendTo: built.sendTo,
+      signature,
+      recipientPrivateBalanceLamports: recipientPrivateBalance.amountLamports,
+      recipientPrivateBalanceError: recipientPrivateBalance.error,
+    };
+  });
+
+  const privatePayout = await tryStep(report, 'treasury_private_to_winner_private_transfer_expected_issue', async () => {
+    const built = await custodyClient.buildPrivateTransfer({
+      from: custodyClient.walletAddress,
+      to: recipientClient.walletAddress,
+      amountLamports: payoutLamports,
+      memo: 'mb-example-private-payout',
+    });
+    const signature = await custodyClient.signAndSubmitBuiltTransaction(built, custodyKeypair);
+    return { sendTo: built.sendTo, signature, amountSol: lamportsToSol(payoutLamports) };
+  });
+
+  const treasuryWithdraw = await tryStep(report, 'treasury_same_owner_withdraw_control', async () => {
+    const withdrawAmount = Math.min(intakeLamports, payoutLamports);
+    const built = await custodyClient.buildWithdraw({
+      owner: custodyClient.walletAddress,
+      amountLamports: withdrawAmount,
+    });
+    const signature = await custodyClient.signAndSubmitBuiltTransaction(built, custodyKeypair);
+    return { sendTo: built.sendTo, signature, amountSol: lamportsToSol(withdrawAmount) };
+  });
+
+  report.summary = privatePayout.ok
+    ? {
+        status: 'private_payout_succeeded',
+        note: 'The previously failing treasury ephemeral -> recipient ephemeral route succeeded in this run.',
+      }
+    : {
+        status: 'reproduced_private_payout_failure',
+        note: 'Intake base -> treasury ephemeral succeeded, but treasury ephemeral -> recipient ephemeral payout failed. This is the support case.',
+        payoutError: privatePayout.error,
+        sameOwnerWithdrawControl: treasuryWithdraw.ok ? 'succeeded' : `failed:${treasuryWithdraw.error}`,
+      };
+
+  writeReport(report);
   console.log(JSON.stringify(report, null, 2));
 }
 

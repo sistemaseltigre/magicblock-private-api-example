@@ -218,6 +218,37 @@ class PrivatePaymentsClient {
     return { ata: ata.toBase58(), amountLamports: Number(balance?.value?.amount || 0) };
   }
 
+  async waitForBaseTokenBalanceLamports(ownerAddress, minimumLamports, { attempts = 12, delayMs = 1000 } = {}) {
+    let lastBalance = null;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      lastBalance = await this.getBaseTokenBalanceLamports(ownerAddress);
+      if (lastBalance.amountLamports >= Number(minimumLamports || 0)) return lastBalance;
+      await sleep(delayMs);
+    }
+    return lastBalance;
+  }
+
+  async getPrivateTokenBalanceLamports(ownerAddress = this.walletAddress) {
+    const params = new URLSearchParams({
+      address: String(ownerAddress || '').trim(),
+      mint: this.mint,
+      cluster: this.cluster,
+    });
+    const response = await fetch(`${this.paymentsApiUrl}/v1/spl/private-balance?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${await this.getPaymentsAuthToken()}` },
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(json?.error?.message || json?.error || json?.message || 'private_balance_failed');
+    }
+    const rawAmount = json?.amount || json?.balance || json?.tokenAmount?.amount || json?.value?.amount || 0;
+    return {
+      owner: String(ownerAddress || '').trim(),
+      amountLamports: Number(rawAmount || 0),
+      raw: json,
+    };
+  }
+
   async isMintInitialized() {
     const params = new URLSearchParams({
       mint: this.mint,
@@ -350,6 +381,29 @@ class PrivatePaymentsClient {
       memo: String(memo || '').slice(0, 64),
       fromBalance: 'ephemeral',
       toBalance: 'ephemeral',
+    }, { auth: true });
+  }
+
+  async buildBaseToPrivateTransfer({ from, to, amountLamports, memo }) {
+    await this.ensureMintInitialized();
+    return this.paymentsRequest('/v1/spl/transfer', {
+      owner: String(from || '').trim(),
+      destination: String(to || '').trim(),
+      from: String(from || '').trim(),
+      to: String(to || '').trim(),
+      amount: Number(amountLamports || 0),
+      cluster: this.cluster,
+      mint: this.mint,
+      privacy: 'private',
+      visibility: 'private',
+      validator: this.validatorId,
+      memo: String(memo || '').slice(0, 64),
+      fromBalance: 'base',
+      toBalance: 'ephemeral',
+      initIfMissing: true,
+      initVaultIfMissing: true,
+      initAtasIfMissing: true,
+      idempotent: true,
     }, { auth: true });
   }
 
