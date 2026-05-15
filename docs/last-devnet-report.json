@@ -1,10 +1,10 @@
 {
   "mode": "live-devnet",
-  "startedAt": "2026-05-14T21:56:30.455Z",
+  "startedAt": "2026-05-15T15:26:54.906Z",
   "purpose": "Reproduce the current wSOL Private Payments payout issue for MagicBlock support.",
   "custodyWallet": "W1sLZfiKi2Y2swJ582KabecUcDoyaWxxhHASSBKwDJT",
-  "bettorWallet": "FEEx2pRnJLbaCPuQ2AaFqDoh1pzGX59iLnozYCoVzuXs",
-  "recipientWallet": "JD8E8xcS3Shz6Y3diY336SDyuTDfK3MxZ7pvY7fEW7cD",
+  "bettorWallet": "6fM3oX5HC7DqCV2VhSWfNfomGbHzzxkBhBBstGMrdBXE",
+  "recipientWallet": "6uzesWkM4BhSkRUoW3ZgPoU9m6fNDuhzNVogCRvJiYn5",
   "bettorKeypairWasGenerated": true,
   "recipientKeypairWasGenerated": true,
   "cluster": "devnet",
@@ -37,7 +37,7 @@
       "funded": true,
       "balanceLamports": 80000000,
       "lamports": 80000000,
-      "signature": "9vr1h9xk6fUGtAGnjSwsoJwJwd1jRKNaXRXLo6BLzCqeCd5uFJSpfj9rQWUHUE8ex9TanqUTu2dPsk5kgbgAgF2"
+      "signature": "i6D9tKY7wAwJbrxGMCjW46BwtabpwvvSV7xZagjrByo2C22XLnYnApJEWiF7bLRjaNWwLhndNdGNGwMwpH27kKa"
     },
     {
       "step": "fund_recipient_for_devnet_init_and_fees",
@@ -45,22 +45,22 @@
       "funded": true,
       "balanceLamports": 30000000,
       "lamports": 30000000,
-      "signature": "hjpc4ouQ3TgFxTruV16CUt96HVB4x4tSf45g7Wqbab8nyDJDqWwqqqLqA4ZWM1esfTgMYU6GBLgWJqrHZZ12CnT"
+      "signature": "41uE6T6nfypLHNqj3HUvCqm2jT5UKog8xLkyKxs4FeQBpYmaCqoMuA6UjyygWRuYPzojcRVSCaLoq2Ch8i1ixhRF"
     },
     {
       "step": "bettor_wrap_sol_to_wsol_base_balance",
       "ok": true,
       "wrapped": true,
-      "ata": "ADfvP4FfrQTAYTh42r3yuVMaZvQGsgVB9QSBr5kro43g",
+      "ata": "8H2NtfSFYoW7THposGkvhEJc8EcK1bPuSnK3PX6jw21M",
       "currentLamports": 50000000,
-      "signature": "cokmu7139C7uLruNifVZ6kfw2e4C1jSqU6XWPuqi1396LSmJKsmgcr6rrmzjn6yVM43NFyvACSBLaSeSWi6jQGj",
+      "signature": "2fVESK9sdKCAKJFbMtqrKb9ZfPUQusFiuuLADNYm1e8T7mtmZXx9f2ZtqhfeMuWFj9pmxPYSU3beWo4nKuE4h3Px",
       "baseTokenBalanceLamports": 50000000
     },
     {
       "step": "private_intake_base_to_treasury_ephemeral_transfer",
       "ok": true,
       "sendTo": "base",
-      "signature": "1W3P66XJFqJvN3bKxcFod3Bp2dZ7KGA5MHsjHBkud7iQsepE9qxCNkbYaTkvqzwtcCHAWqMmmUsxKvJLZACWxcE",
+      "signature": "2xFNHA9NSwjdwb5M1S7v1FoVWrPraJmKYaiArp7fTavChtZzSCccQhpTsqXJeXKUM6ZaU6j8KHLKD3HFiTPDFvgD",
       "amountSol": 0.01,
       "custodyPrivateBalanceLamports": 1000000
     },
@@ -68,7 +68,7 @@
       "step": "recipient_initialize_private_balance_optional_control",
       "ok": true,
       "sendTo": "base",
-      "signature": "3xsc4DjobB2PGq5np4UD6BLb3HnygggaxmkkRkvziKAG6QeqruyizBrnTG69wZBkBPECYzGkV2LaCbzrk45UthqY",
+      "signature": "4yQQ7QPMFbkTD85eqcmxipXSaFtS1CThWfvYcmyKb8H3yHomRyUDFwDKUVSxfxxGkwDuDo2jAR3bDakqVuQEzv7c",
       "recipientPrivateBalanceLamports": 0
     },
     {
@@ -80,10 +80,51 @@
       "step": "treasury_same_owner_withdraw_control",
       "ok": true,
       "sendTo": "base",
-      "signature": "3qvD8AxCcfKyXC3j1xCtfCjUiqmRUGTF9jkXXxVgfmBvDMSeLkC1jnKRdpfGrnPT7T2rJwxoc2DMQ4Eanss74jgs",
+      "signature": "3uMKR1ZZtHYHNo3EeKrKg3DFTretR89UUnSdRVkgH1PN9fdiimpV5h3fsaJCc7VEBWJ4FUtc4qSjeDXauQvAFoTH",
       "amountSol": 0.005
     }
   ],
+  "privatePayoutBuild": {
+    "request": {
+      "owner": "W1sLZfiKi2Y2swJ582KabecUcDoyaWxxhHASSBKwDJT",
+      "destination": "6uzesWkM4BhSkRUoW3ZgPoU9m6fNDuhzNVogCRvJiYn5",
+      "fromBalance": "ephemeral",
+      "toBalance": "ephemeral",
+      "initIfMissing": true,
+      "initVaultIfMissing": true,
+      "initAtasIfMissing": true,
+      "idempotent": true
+    },
+    "transaction": {
+      "sendTo": "ephemeral",
+      "version": "legacy",
+      "feePayer": "W1sLZfiKi2Y2swJ582KabecUcDoyaWxxhHASSBKwDJT",
+      "requiredSigners": [
+        "W1sLZfiKi2Y2swJ582KabecUcDoyaWxxhHASSBKwDJT"
+      ],
+      "writableAccounts": [
+        "AwNQvgXTm1xV1We4xuULD8LedLPgwo8iKdLgrCEBHG37",
+        "2mnR9qSdFcvHT8yC7Vjs36LZvY4hUwFxKGniE7twKFoE",
+        "W1sLZfiKi2Y2swJ582KabecUcDoyaWxxhHASSBKwDJT"
+      ],
+      "instructions": [
+        {
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "accounts": [
+            "AwNQvgXTm1xV1We4xuULD8LedLPgwo8iKdLgrCEBHG37",
+            "2mnR9qSdFcvHT8yC7Vjs36LZvY4hUwFxKGniE7twKFoE",
+            "W1sLZfiKi2Y2swJ582KabecUcDoyaWxxhHASSBKwDJT"
+          ],
+          "data": "3QDJ9TwUE2Dm"
+        },
+        {
+          "programId": "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+          "accounts": [],
+          "data": "m1nrvqALwdT4amTEz4xCAj8QvLkBMwMXFH"
+        }
+      ]
+    }
+  },
   "summary": {
     "status": "reproduced_private_payout_failure",
     "note": "Intake base -> treasury ephemeral succeeded, but treasury ephemeral -> recipient ephemeral payout failed. This is the support case.",

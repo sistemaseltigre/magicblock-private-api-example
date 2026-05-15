@@ -18,6 +18,7 @@ The live repro currently confirms this behavior with the wSOL mint:
 - The treasury private balance increases after intake.
 - `POST /v1/spl/withdraw` can work when the treasury withdraws its own private balance back to its own base wallet.
 - `POST /v1/spl/transfer` with `fromBalance=ephemeral` and `toBalance=ephemeral` fails when the treasury tries to privately credit an external winner wallet.
+- The repro now passes `initIfMissing`, `initVaultIfMissing`, `initAtasIfMissing`, and `idempotent` on the failing payout request.
 
 The failure is the important part of this repo. The current product requirement is not only private intake; it also needs private payouts so nobody can see which wallet won or received the reward.
 
@@ -30,6 +31,8 @@ Using devnet TEE `https://devnet-tee.magicblock.app`, validator `MTEWGuqxUpYZGFJ
 3. If no, what is the correct private payout route for `treasury private balance -> external winner private balance -> winner base wallet`?
 4. Can the API build a direct private treasury payout to an external recipient without exposing the recipient on base-chain settlement?
 5. What are the first-time and recurring costs for 0.01, 0.03, and 0.05 SOL bets, including ATA rent, shuttle/vault/private-account rent, MagicBlock fees, and normal transaction fees?
+
+The latest live report includes the exact failing payout request plus a decoded summary of the unsigned transaction returned by the API in `docs/last-devnet-report.json`.
 
 ## Pool Rules
 

@@ -381,6 +381,10 @@ class PrivatePaymentsClient {
       memo: String(memo || '').slice(0, 64),
       fromBalance: 'ephemeral',
       toBalance: 'ephemeral',
+      initIfMissing: true,
+      initVaultIfMissing: true,
+      initAtasIfMissing: true,
+      idempotent: true,
     }, { auth: true });
   }
 

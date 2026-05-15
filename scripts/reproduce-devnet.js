@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { Keypair } = require('@solana/web3.js');
 const { parseKeypair } = require('../src/keypair');
-const { PrivatePaymentsClient } = require('../src/privatePaymentsClient');
+const { PrivatePaymentsClient, decodeLegacyTransaction } = require('../src/privatePaymentsClient');
 const { distributePvPPool, solToLamports, lamportsToSol } = require('../src/bettingMath');
 
 function hasFlag(name) {
@@ -114,6 +114,28 @@ async function tryStep(report, step, fn) {
 function writeReport(report) {
   const reportPath = path.join(__dirname, '..', 'docs', 'last-devnet-report.json');
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+}
+
+function summarizeBuiltTransaction(built) {
+  const transaction = decodeLegacyTransaction(built.transactionBase64);
+  const message = transaction.compileMessage();
+  const accountKeys = message.accountKeys.map((key) => key.toBase58());
+  return {
+    sendTo: built.sendTo,
+    version: built.version || 'legacy',
+    feePayer: transaction.feePayer?.toBase58() || null,
+    requiredSigners: transaction.signatures.map((entry) => entry.publicKey.toBase58()),
+    writableAccounts: Array.from(new Set(
+      transaction.instructions.flatMap((instruction) => (
+        instruction.keys.filter((key) => key.isWritable).map((key) => key.pubkey.toBase58())
+      ))
+    )),
+    instructions: message.instructions.map((instruction) => ({
+      programId: accountKeys[instruction.programIdIndex] || null,
+      accounts: Array.from(instruction.accounts || []).map((index) => accountKeys[index] || null),
+      data: String(instruction.data || ''),
+    })),
+  };
 }
 
 async function runLiveDevnet() {
@@ -254,6 +276,19 @@ async function runLiveDevnet() {
       amountLamports: payoutLamports,
       memo: 'mb-example-private-payout',
     });
+    report.privatePayoutBuild = {
+      request: {
+        owner: custodyClient.walletAddress,
+        destination: recipientClient.walletAddress,
+        fromBalance: 'ephemeral',
+        toBalance: 'ephemeral',
+        initIfMissing: true,
+        initVaultIfMissing: true,
+        initAtasIfMissing: true,
+        idempotent: true,
+      },
+      transaction: summarizeBuiltTransaction(built),
+    };
     const signature = await custodyClient.signAndSubmitBuiltTransaction(built, custodyKeypair);
     return { sendTo: built.sendTo, signature, amountSol: lamportsToSol(payoutLamports) };
   });
